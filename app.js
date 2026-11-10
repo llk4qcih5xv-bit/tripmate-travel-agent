@@ -63,34 +63,21 @@ function addRouteCard(route){
  const mapUrl=directionsUrl(route);if(mapUrl){const link=document.createElement('a');link.className='map-link';link.href=mapUrl;link.target='_blank';link.rel='noopener noreferrer';link.textContent='在 Google 地图查看路线 ↗';footer.append(link);}
  card.append(footer);return card;
 }
-async function findCommonsImage(query,matchTerms=[]){
- const q=String(query||'').trim();if(!q)return null;
- const cacheKey=`tripmate.commons.v2.${q.toLocaleLowerCase()}.${matchTerms.join('|').toLocaleLowerCase()}`;
- try{const cached=JSON.parse(localStorage.getItem(cacheKey)||'null');if(cached&&Date.now()-cached.savedAt<7*24*60*60*1000)return cached.image||null;}catch{}
- try{
-  const params=new URLSearchParams({query:q,terms:matchTerms.slice(0,5).join('|')});
-  const response=await fetch(`/api/commons-search?${params.toString()}`);if(!response.ok)return null;
-  const data=await response.json(),image=data.image||null;
-  if(image)try{localStorage.setItem(cacheKey,JSON.stringify({savedAt:Date.now(),image}));}catch{}
-  return image;
- }catch{return null;}
-}
-function addPhoto(target,query,matchTerms,alt){
- const placeholder=document.createElement('div');placeholder.className='photo-placeholder';placeholder.textContent='正在寻找可核实的当地图片…';target.append(placeholder);
- findCommonsImage(query,matchTerms).then(image=>{
-  placeholder.remove();if(!image){const empty=document.createElement('div');empty.className='photo-empty';empty.textContent='暂未找到与该地点名称匹配的公开实景图';target.append(empty);return;}
-  const figure=document.createElement('figure');figure.className='place-photo';const img=document.createElement('img');img.src=image.url;img.alt=alt;img.loading='lazy';img.referrerPolicy='no-referrer';img.onerror=()=>figure.remove();figure.append(img);
-  const caption=document.createElement('figcaption');const source=document.createElement('a');source.href=image.descriptionUrl;source.target='_blank';source.rel='noopener noreferrer';source.textContent=`图片来源 Wikimedia Commons${image.artist?` · ${image.artist}`:''}${image.license?` · ${image.license}`:''}`;caption.append(source);figure.append(caption);target.append(figure);
- }).catch(()=>placeholder.remove());
+function addPhoto(target,pageUrl,alt){
+ const placeholder=document.createElement('div');placeholder.className='photo-placeholder';placeholder.textContent=pageUrl?'正在读取推荐详情页的图片…':'该推荐没有可核实的图片来源页';target.append(placeholder);
+ if(!pageUrl)return;
+ const figure=document.createElement('figure');figure.className='place-photo';const img=document.createElement('img');img.src=`/api/place-photo?page=${encodeURIComponent(pageUrl)}`;img.alt=alt;img.loading='lazy';img.referrerPolicy='no-referrer';
+ img.onload=()=>{placeholder.remove();target.append(figure);};img.onerror=()=>{placeholder.textContent='来源页面暂未提供可读取的图片预览';};figure.append(img);
+ const caption=document.createElement('figcaption');const source=document.createElement('a');source.href=pageUrl;source.target='_blank';source.rel='noopener noreferrer';source.textContent='图片预览来自推荐详情页 ↗';caption.append(source);figure.append(caption);
 }
 function renderVisuals(visuals,fallbackDestination=''){
- visuals=visuals||{destination:fallbackDestination,destinationImageQuery:fallbackDestination,destinationPhotoTerms:[fallbackDestination],dayRoutes:[],places:[]};
+ visuals=visuals||{destination:fallbackDestination,destinationPhotoPageUrl:'',dayRoutes:[],places:[]};
  visualContent.replaceChildren();
  const heading=document.createElement('div');heading.className='visual-section-heading';const copy=document.createElement('div');const kicker=document.createElement('span');kicker.className='section-kicker';kicker.textContent='目的地图片 · 每日路线图 · 推荐商家';const title=document.createElement('h3');title.textContent='先看沿途风景，再打开实用链接';copy.append(kicker,title);heading.append(copy);visualContent.append(heading);
- const destination=document.createElement('article');destination.className='destination-photo-card';const destinationInfo=document.createElement('div');destinationInfo.className='destination-photo-info';const label=document.createElement('span');label.className='visual-kicker';label.textContent='当地风景';const name=document.createElement('h4');name.textContent=visuals.destination||'目的地';const copyText=document.createElement('p');copyText.textContent='从当地地标与街景开始，看看这趟旅程会经过哪些地方。';destinationInfo.append(label,name,copyText);const photo=document.createElement('div');photo.className='destination-photo';destination.append(destinationInfo,photo);visualContent.append(destination);addPhoto(photo,visuals.destinationImageQuery||visuals.destination,visuals.destinationPhotoTerms?.length?visuals.destinationPhotoTerms:[visuals.destination],'目的地当地风景');
+ const destination=document.createElement('article');destination.className='destination-photo-card';const destinationInfo=document.createElement('div');destinationInfo.className='destination-photo-info';const label=document.createElement('span');label.className='visual-kicker';label.textContent='当地风景';const name=document.createElement('h4');name.textContent=visuals.destination||'目的地';const copyText=document.createElement('p');copyText.textContent='图片取自本次攻略引用的公开介绍页面。';destinationInfo.append(label,name,copyText);const photo=document.createElement('div');photo.className='destination-photo';destination.append(destinationInfo,photo);visualContent.append(destination);addPhoto(photo,visuals.destinationPhotoPageUrl,'目的地当地风景');
  const routes=(visuals.dayRoutes||[]).filter(route=>Array.isArray(route.stops)&&route.stops.length>=2);if(routes.length){const routeGrid=document.createElement('div');routeGrid.className='route-grid';routes.forEach(route=>routeGrid.append(addRouteCard(route)));visualContent.append(routeGrid);}
- const places=(visuals.places||[]).filter(place=>place.name&&/^https:\/\//i.test(place.url||''));if(places.length){const subheading=document.createElement('div');subheading.className='visual-subheading';const h=document.createElement('h3');h.textContent='沿途值得收藏的地方';const p=document.createElement('p');p.textContent='图片只在地点名称与公开图片资料能匹配时显示；未找到时不会拿别家照片代替。';subheading.append(h,p);visualContent.append(subheading);const cards=document.createElement('div');cards.className='place-photo-grid';places.forEach(place=>{
-   const card=document.createElement('article');card.className='place-card';const media=document.createElement('div');media.className='place-card-media';card.append(media);const body=document.createElement('div');body.className='place-card-body';const type=document.createElement('span');type.className='place-type';type.textContent=place.type==='hotel'?'住宿推荐':'餐饮推荐';const title=document.createElement('h4');title.textContent=place.name;const area=document.createElement('p');area.className='place-city';area.textContent=place.city||visuals.destination||'';const link=document.createElement('a');link.href=place.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=place.type==='hotel'?'查看酒店详情 / 预订 ↗':'查看餐厅详情 / 菜单 ↗';body.append(type,title,area,link);card.append(body);cards.append(card);addPhoto(media,place.imageQuery||`${place.name} ${place.city}`,[place.name],`${place.name} 相关实景图`);
+ const places=(visuals.places||[]).filter(place=>place.name&&/^https:\/\//i.test(place.url||''));if(places.length){const subheading=document.createElement('div');subheading.className='visual-subheading';const h=document.createElement('h3');h.textContent='沿途值得收藏的地方';const p=document.createElement('p');p.textContent='酒店与餐厅图片来自攻略列出的对应详情页，图片下方可打开原页面。';subheading.append(h,p);visualContent.append(subheading);const cards=document.createElement('div');cards.className='place-photo-grid';places.forEach(place=>{
+   const card=document.createElement('article');card.className='place-card';const media=document.createElement('div');media.className='place-card-media';card.append(media);const body=document.createElement('div');body.className='place-card-body';const type=document.createElement('span');type.className='place-type';type.textContent=place.type==='hotel'?'住宿推荐':'餐饮推荐';const title=document.createElement('h4');title.textContent=place.name;const area=document.createElement('p');area.className='place-city';area.textContent=place.city||visuals.destination||'';const link=document.createElement('a');link.href=place.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=place.type==='hotel'?'查看酒店详情 / 预订 ↗':'查看餐厅详情 / 菜单 ↗';body.append(type,title,area,link);card.append(body);cards.append(card);addPhoto(media,place.url,`${place.name} 详情页图片预览`);
   });visualContent.append(cards);}
  visualContent.hidden=false;
 }
@@ -104,4 +91,3 @@ form.addEventListener('submit',async e=>{
  finally{loading.hidden=true;button.disabled=false;btnLabel.textContent='再规划一份攻略';}
 });
 document.querySelector('#copy-plan').addEventListener('click',async()=>{const text=plan.innerText;if(!text)return;try{await navigator.clipboard.writeText(text);const b=document.querySelector('#copy-plan');b.innerHTML='已复制 <span>✓</span>';setTimeout(()=>b.innerHTML='复制攻略 <span>↗</span>',1800);}catch{document.querySelector('#copy-plan').textContent='复制失败，请手动选择';}});
-
