@@ -56,12 +56,16 @@ function travelPrompt(checkedAt) {
 请用简体中文给出可执行攻略，按下面结构组织，并尽量使用 Markdown 表格（表格会在网页中直观展示）：
 1. 行程概览：日期、人数、节奏、预算假设；日期未提供或不具体时，明确说无法核验对应日期的实时房价/票价。
 2. 按天分区整理，避免把各类提醒混在长段落里。每一天都先给醒目的“分钟级日程表”，每行写明确的开始/结束时间（HH:MM），并写清活动、地点、该项耗时和优先级。把步行、交通、换乘、排队、用餐、休息都列成单独时段，不要用“上午自由活动”这类模糊时间；安排要符合真实开放时间和移动耗时，并留出可跳过/调整的机动时间。优先级统一用“必去”“推荐”“可选”：可选项是游客压缩行程时优先删减的内容。
-   每天的日程表之后，分别使用独立小标题和表格整理：a)“步行与交通”表，列每段起终点、步行公里数、其他交通方式/距离、预计耗时，并给当日步行总距离；b)“排队与预约”表，列景点、预计排队分钟数、适用时段/预约要求和来源；无可靠排队数据时写“无法可靠预估”，不得编造精确分钟数；c)“当日费用”表，分列门票、交通、餐饮、住宿及是否为挂牌价或规划估算；d)“今日随身物品”独立短清单；e)“弹性调整”小块，说明可跳过项目及替代安排。距离和车程若是地图估算要标“地图估算”，不得伪称精确实测。
+   每天的日程表之后，分别使用独立小标题和表格整理：a)“出行方式与距离”合并表，按时间顺序列每段起终点、步行/公交/地铁/出租车等方式、各方式距离、预计耗时，并给当日步行与其他交通距离合计；未使用的方式填“—”，不要把步行和其他交通拆成两栏或重复写两张表；b)“排队与预约”表，列景点、预计排队分钟数、适用时段/预约要求和来源；无可靠排队数据时写“无法可靠预估”，不得编造精确分钟数；c)“当日费用”表，分列门票、交通、餐饮、住宿及是否为挂牌价或规划估算；d)“今日随身物品”独立短清单；e)“弹性调整”小块，说明可跳过项目及替代安排。距离和车程若是地图估算要标“地图估算”，不得伪称精确实测。
 3. 具体住宿示例表：列出 2 个实际存在、适合路线的酒店/民宿名称、所在区域、用户入住日期对应的每晚挂牌价/币种/房型/含税与早餐情况、可直接打开的酒店或预订详情链接。仅列出网页确实显示的金额；若日期/库存需进入页面选择后才显示，价格栏写“页面未显示，需选日期确认”，并给真实酒店/预订页链接。不要编造酒店和链接。
 4. 具体餐厅示例表：列出沿途真实餐厅、推荐菜或菜单项目、已查到的单项菜单价格及币种、所在区域和餐厅官方/菜单/地图链接。未查到菜单价格时直接写“菜单价格未公开，点链接确认”，不要用一个臆测范围替代。至少覆盖行程中主要用餐时段。
 5. 门票与预约表：列出行程涉及景点的票种、对应日期和成人/儿童适用条件、网页明确显示的单人票价、官方购票或景点链接；日期相关或页面没有确切金额时写“需在官方页面按日期确认”，不要编造。
 6. 每日预算表和总预算：交通、门票、餐饮、住宿分别列明计算口径与单一金额；区分“已查到挂牌价”和“规划估算”。不得用宽泛价格范围充数。未能核实的项写“待确认”，不要凑出虚假的精确总额。
 7. 天气、安全、预约提醒和出发前核对清单。
+
+8. 在完整攻略之后，额外附加且只附加一个网页视觉数据块，必须是单行 JSON，不能放入 Markdown 代码围栏，格式如下：
+<tripmate-visuals>{"destination":"目的地","destinationImageQuery":"城市常用中文或英文名 地标","destinationPhotoTerms":["目的地常用英文名","上文出现的真实地标名"],"dayRoutes":[{"day":1,"city":"城市","stops":["行程中的真实地点A","真实地点B","真实地点C"]}],"places":[{"type":"hotel","name":"攻略中实际推荐的酒店名","city":"城市","url":"上文同一条酒店详情/预订链接","imageQuery":"酒店名 城市 实景"},{"type":"restaurant","name":"攻略中实际推荐的餐厅名","city":"城市","url":"上文同一条餐厅/菜单链接","imageQuery":"餐厅名 城市 实景"}]}</tripmate-visuals>
+视觉数据规则：dayRoutes 每天只列 2–7 个当天攻略中已经出现的真实地点，按游览顺序排列；places 只挑上文酒店和餐厅表中已核实、已给出同一详情链接的实例，最多 5 个，不要新编商家、链接、坐标或图片网址。imageQuery 用地点名称加城市和“实景/外观/店内”等关键词，供网页搜索可自由展示的图片；找不到对应图片时网页会显示说明，不得用别家图片冒充。
 
 引用规则：每个具体酒店、餐厅、景点和票价旁都放对应的可点击来源链接，优先使用商家/景点/官方售票页面；不要只把来源堆在文末，不要生成猜测的网址。不同日期、房型、人数和票种的价格不得混用。若检索结果冲突，说明来源与差异并以官方页面为准。不要声称已经代订。搜索时只使用目的地、日期、公共景点和公开商户等非敏感行程信息，不要将个人备注作为搜索查询。`;
 }
@@ -75,6 +79,34 @@ function extractSources(output = [], text = '') {
  const links = [...text.matchAll(/\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)/g)];
  for (const match of links) found.set(match[2], { title:match[1], url:match[2] });
  return [...found.values()].slice(0,12);
+}
+function cleanVisualText(value, max=180) {
+ return typeof value === 'string' ? value.replace(/[<>\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max) : '';
+}
+function extractVisuals(text, destination) {
+ const match = text.match(/<tripmate-visuals>([\s\S]*?)<\/tripmate-visuals>/i);
+ if (!match) return { text, visuals:null };
+ const cleanedText = text.replace(match[0],'').trim();
+ try {
+  const data = JSON.parse(match[1].trim());
+  const city = cleanVisualText(data.destination || destination,100) || destination;
+  const destinationImageQuery = cleanVisualText(data.destinationImageQuery || city,180) || city;
+  const destinationPhotoTerms = [...new Set((Array.isArray(data.destinationPhotoTerms) ? data.destinationPhotoTerms : [city]).map(x=>cleanVisualText(x,100)).filter(Boolean))].slice(0,5);
+  const dayRoutes = (Array.isArray(data.dayRoutes) ? data.dayRoutes : []).slice(0,14).map((route,index) => {
+   const stops = [...new Set((Array.isArray(route.stops) ? route.stops : []).map(x=>cleanVisualText(x,100)).filter(Boolean))].slice(0,7);
+   return { day:Number.isInteger(Number(route.day)) ? Number(route.day) : index+1, city:cleanVisualText(route.city || city,100) || city, stops };
+  }).filter(route=>route.day>=1 && route.day<=14 && route.stops.length>=2);
+  const places = (Array.isArray(data.places) ? data.places : []).slice(0,5).map(place => {
+   const type = place.type === 'hotel' ? 'hotel' : place.type === 'restaurant' ? 'restaurant' : '';
+   const name = cleanVisualText(place.name,120), placeCity = cleanVisualText(place.city || city,100) || city;
+   const url = typeof place.url === 'string' && /^https:\/\//i.test(place.url) ? place.url.slice(0,1200) : '';
+   const imageQuery = cleanVisualText(place.imageQuery || `${name} ${placeCity}`,180);
+   return { type,name,city:placeCity,url,imageQuery };
+  }).filter(place=>place.type && place.name && place.url && place.imageQuery);
+  return { text:cleanedText, visuals:dayRoutes.length || places.length ? { destination:city, destinationImageQuery, destinationPhotoTerms, dayRoutes, places } : null };
+ } catch {
+  return { text:cleanedText, visuals:null };
+ }
 }
 async function makePlan(req, res) {
  if (!process.env.DEEPSEEK_API_KEY) return json(res, 503, { error:'服务还没有配置 DeepSeek 密钥，暂时不能生成攻略。' });
@@ -97,7 +129,8 @@ async function makePlan(req, res) {
   if (!response.ok) { console.error('AI provider returned',response.status); return finishResponse({error:'攻略生成服务暂时不可用，请稍后重试。'}); }
   const text = (result.output||[]).filter(i=>i.type==='message').flatMap(i=>i.content||[]).filter(c=>c.type==='output_text').map(c=>c.text).join('\n') || result.output_text || '';
   if (!text) return finishResponse({error:'暂时没有生成攻略，请稍后重试。'});
-  finishResponse({ text, sources:extractSources(result.output,text), checkedAt:checkedAt.toISOString() });
+  const enhanced = extractVisuals(text,destination);
+  finishResponse({ text:enhanced.text, visuals:enhanced.visuals, sources:extractSources(result.output,enhanced.text), checkedAt:checkedAt.toISOString() });
  } catch (e) { console.error('AI request failed:',e.name); finishResponse({error:'连接攻略生成服务失败，请稍后再试。'}); }
 }
 const server = http.createServer(async (req,res) => {
