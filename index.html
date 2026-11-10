@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f7f5ef"><meta name="description" content="告诉旅伴你想去哪里，它会结合实时资料为你整理一份合心意、可执行的旅行攻略。">
+  <title>旅伴 · 把旅行计划变简单</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="旅伴首页"><span class="brand-mark">旅</span><span>旅伴<small>TRIPMATE</small></span></a>
+      <nav aria-label="主导航"><a href="#how">怎么规划</a><a href="#about">关于旅伴</a></nav>
+      <a class="top-cta" href="#planner">开始规划 <span>↗</span></a>
+    </header>
+
+    <main>
+      <section class="hero" id="planner">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="live-dot"></span> 为下一段旅程，留一点灵感</div>
+          <h1>好攻略，<br><em>从懂你开始。</em></h1>
+          <p>告诉旅伴你想去哪里。我们会把最新资料、当地节奏和你的喜好，整理成一份真正走得通的行程。</p>
+          <div class="hero-meta"><span>✳ 实时查找公开资料</span><span>✳ 按你的节奏安排</span></div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="sun"></div><div class="map-grid"></div><div class="route route-one"></div><div class="route route-two"></div>
+          <span class="pin pin-a">✦</span><span class="pin pin-b">●</span><span class="pin pin-c">✦</span>
+          <div class="map-label label-a">下一站 · 杭州</div><div class="map-label label-b">沿途慢慢逛</div>
+          <div class="stamp"><span>旅</span><small>GO<br>YOUR<br>OWN WAY</small></div>
+          <div class="art-caption">一张地图<br>也可以有很多种走法。</div>
+        </div>
+      </section>
+
+      <section class="planner-card" aria-labelledby="form-title">
+        <div class="form-heading"><div><span class="section-kicker">YOUR TRIP, YOUR WAY</span><h2 id="form-title">这次想去哪儿？</h2></div><span class="step-mark">01 <i>/ 01</i></span></div>
+        <form id="trip-form">
+          <div class="form-grid">
+            <label class="field field-destination"><span>目的地 <b>*</b></span><input id="destination" name="destination" required maxlength="100" placeholder="例如：京都、云南、意大利" autocomplete="off"><span class="field-icon">⌕</span></label>
+            <label class="field"><span>出发日期 <small>尽量填写具体日期</small></span><input id="dates" name="dates" type="text" maxlength="80" placeholder="例如：2026-12-18，或日期待定"></label>
+            <label class="field"><span>玩几天</span><select id="days" name="days"><option value="2">2 天</option><option value="3" selected>3 天</option><option value="4">4 天</option><option value="5">5 天</option><option value="7">7 天</option><option value="10">10 天</option><option value="14">14 天</option></select></label>
+            <label class="field"><span>同行人数</span><select id="people" name="people"><option value="1">1 人</option><option value="2" selected>2 人</option><option value="3">3 人</option><option value="4">4 人</option><option value="5">5 人</option><option value="6">6 人</option></select></label>
+            <label class="field"><span>人均预算</span><select id="budget" name="budget"><option value="经济型，尽量省钱">经济舒适</option><option value="中等预算，兼顾舒适与体验" selected>舒服适中</option><option value="预算宽松，注重品质体验">品质享受</option><option value="请按当地常见价格估算">还没想好</option></select></label>
+            <label class="field"><span>行程节奏</span><select id="pace" name="pace"><option>慢慢逛，少赶路</option><option selected>刚刚好，张弛有度</option><option>多去几个地方，充实一点</option></select></label>
+          </div>
+          <fieldset class="interest-group"><legend>这趟更想体验什么？ <small>可多选</small></legend><div class="chips">
+            <label class="chip"><input type="checkbox" name="interests" value="当地美食"><span>🍜 当地美食</span></label>
+            <label class="chip"><input type="checkbox" name="interests" value="自然风光"><span>⛰ 自然风光</span></label>
+            <label class="chip"><input type="checkbox" name="interests" value="历史人文"><span>🏛 历史人文</span></label>
+            <label class="chip"><input type="checkbox" name="interests" value="亲子友好"><span>☀ 亲子友好</span></label>
+            <label class="chip"><input type="checkbox" name="interests" value="拍照散步"><span>📷 拍照散步</span></label>
+            <label class="chip"><input type="checkbox" name="interests" value="购物逛街"><span>✳ 购物逛街</span></label>
+            <label class="chip"><input type="checkbox" name="interests" value="小众路线"><span>↗ 小众路线</span></label>
+          </div></fieldset>
+          <label class="field notes-field"><span>还有什么想告诉旅伴？ <small>选填</small></span><textarea id="notes" name="notes" maxlength="600" rows="2" placeholder="比如：不吃辣、带老人出行、想避开热门景点……"></textarea><span class="char-count"><span id="note-count">0</span>/600</span></label>
+          <div class="form-bottom"><p>填写的信息会发送给 AI 服务生成攻略，不由本站保存；请勿填写证件号、联系方式等敏感信息。日期越具体，越容易核对对应日期的酒店与门票挂牌价；商家结算页价格和库存可能变化。</p><button class="generate-button" type="submit"><span class="button-label">为我生成攻略</span><span class="button-arrow">↗</span></button></div>
+        </form>
+      </section>
+
+      <section class="suggestions" aria-label="目的地灵感"><span>还没决定？试试</span><button type="button" data-destination="成都">成都 · 3 天</button><button type="button" data-destination="东京">东京 · 5 天</button><button type="button" data-destination="厦门">厦门 · 2 天</button></section>
+
+      <section id="result" class="result-section" hidden aria-live="polite">
+        <div class="result-top"><div><span class="section-kicker">YOUR PERSONAL ITINERARY</span><h2 id="result-title">你的旅程草稿</h2></div><button id="copy-plan" class="copy-button" type="button">复制攻略 <span>↗</span></button></div>
+        <div id="loading" class="loading-card" hidden><div class="loader"></div><div><strong>旅伴正在整理路线</strong><p>正在查找目的地资料，帮你把每天安排得更顺路……</p></div></div>
+        <div id="error-box" class="error-box" hidden></div>
+        <div id="price-check" class="price-check" hidden></div>
+        <article id="plan-content" class="plan-content" hidden></article>
+        <div id="source-list" class="source-list" hidden><h3>参考来源</h3><p>攻略中引用的公开网页。下单前请确认所选日期、人数、房型、票种和最终结算价。</p><div id="sources"></div></div>
+        <p class="disclaimer">网页挂牌价、库存和路线信息可能变化；无法从公开页面核实的内容会标为待确认。行程与费用不构成预订或成交保证。</p>
+      </section>
+
+      <section class="how-section" id="how"><div class="how-intro"><span class="section-kicker">A LITTLE LESS PLANNING, A LITTLE MORE WANDERING</span><h2>少一点做功课，<br><em>多一点在路上。</em></h2></div><div class="how-steps"><div><span>01</span><h3>说说你的想法</h3><p>目的地、预算、偏好，都可以告诉旅伴。</p></div><div><span>02</span><h3>查资料，排顺路</h3><p>结合近期公开信息，把每天安排得可行又舒服。</p></div><div><span>03</span><h3>带着灵感出发</h3><p>拿到一份清晰的计划，再按自己的步调探索。</p></div></div></section>
+    </main>
+    <footer id="about"><a class="brand footer-brand" href="/"><span class="brand-mark">旅</span><span>旅伴<small>TRIPMATE</small></span></a><p>把计划交给旅伴，把好奇留给旅途。</p><span class="footer-right">为每一段旅程，留一点从容。</span></footer>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
+
