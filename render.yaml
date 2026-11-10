@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: tripmate-travel-agent
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: DEEPSEEK_MODEL
+        value: deepseek-v4-pro
+      - key: DEEPSEEK_API_KEY
+        sync: false
+
