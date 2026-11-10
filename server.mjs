@@ -11,6 +11,8 @@ const MAX_BODY = 12_000;
 const WINDOW_MS = 10 * 60 * 1000;
 const LIMIT = 6;
 const buckets = new Map();
+const imageSearchCache = new Map();
+const commonsImageCache = new Map();
 // Load a local .env for development. The file is blocked from static serving and excluded from the ZIP.
 try {
  const envText = await readFile(path.join(ROOT, '.env'), 'utf8');
@@ -85,7 +87,8 @@ function cleanVisualText(value, max=180) {
 }
 function extractVisuals(text, destination) {
  const match = text.match(/<tripmate-visuals>([\s\S]*?)<\/tripmate-visuals>/i);
- if (!match) return { text, visuals:null };
+ const fallback = { destination, destinationImageQuery:destination, destinationPhotoTerms:[destination], dayRoutes:[], places:[] };
+ if (!match) return { text, visuals:fallback };
  const cleanedText = text.replace(match[0],'').trim();
  try {
   const data = JSON.parse(match[1].trim());
@@ -103,10 +106,65 @@ function extractVisuals(text, destination) {
    const imageQuery = cleanVisualText(place.imageQuery || `${name} ${placeCity}`,180);
    return { type,name,city:placeCity,url,imageQuery };
   }).filter(place=>place.type && place.name && place.url && place.imageQuery);
-  return { text:cleanedText, visuals:dayRoutes.length || places.length ? { destination:city, destinationImageQuery, destinationPhotoTerms, dayRoutes, places } : null };
+  return { text:cleanedText, visuals:{ destination:city, destinationImageQuery, destinationPhotoTerms, dayRoutes, places } };
  } catch {
-  return { text:cleanedText, visuals:null };
+  return { text:cleanedText, visuals:fallback };
  }
+}
+function plainImageMeta(value='') {
+ return String(value).replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&#39;|&apos;/gi,"'").replace(/&quot;/gi,'"').replace(/\s+/g,' ').trim().slice(0,240);
+}
+function imageTextKey(value='') {
+ return String(value).normalize('NFKD').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
+}
+async function searchCommonsImage(query, terms=[]) {
+ const safeQuery=cleanVisualText(query,180);
+ if(!safeQuery) return null;
+ const safeTerms=[...new Set(terms.map(x=>cleanVisualText(x,100)).filter(x=>x.length>=3))].slice(0,5);
+ const cacheKey=`${safeQuery.toLocaleLowerCase()}|${safeTerms.join('|').toLocaleLowerCase()}`;
+ const cached=imageSearchCache.get(cacheKey);
+ if(cached&&cached.expiresAt>Date.now()) return cached.image;
+ try {
+  const params=new URLSearchParams({action:'query',format:'json',generator:'search',gsrsearch:safeQuery,gsrnamespace:'6',gsrlimit:'8',prop:'imageinfo',iiprop:'url|extmetadata',iiurlwidth:'1000'});
+  const response=await fetch(`https://commons.wikimedia.org/w/api.php?${params}`,{headers:{'user-agent':'TripmateTravelPlanner/1.0 (https://tripmate-travel-agent-1.onrender.com/)'} ,signal:AbortSignal.timeout(9000)});
+  if(!response.ok) throw new Error('image search unavailable');
+  const data=await response.json(),expected=safeTerms.map(imageTextKey);
+  const candidates=Object.values(data.query?.pages||{}).map(page=>{
+   const info=page.imageinfo?.[0],meta=info?.extmetadata||{};
+   const searchText=imageTextKey(`${page.title||''} ${plainImageMeta(meta.ImageDescription?.value||'')}`);
+   const imageUrl=info?.thumburl||info?.url||'';
+   let safeUrl='';try{const parsed=new URL(imageUrl);if(parsed.protocol==='https:'&&parsed.hostname==='upload.wikimedia.org'&&parsed.pathname.startsWith('/wikipedia/commons/thumb/'))safeUrl=parsed.href;}catch{}
+   let sourceUrl='';try{const parsed=new URL(info?.descriptionurl||'');if(parsed.protocol==='https:'&&parsed.hostname==='commons.wikimedia.org')sourceUrl=parsed.href;}catch{}
+   return {title:page.title||'',url:safeUrl,descriptionUrl:sourceUrl,artist:plainImageMeta(meta.Artist?.value||meta.Credit?.value||''),license:plainImageMeta(meta.LicenseShortName?.value||''),matches:expected.length===0||expected.some(term=>searchText.includes(term)),mime:info?.mime||''};
+  }).filter(image=>image.url&&image.descriptionUrl&&image.mime.startsWith('image/')&&image.matches&&!/(logo|flag|icon|map|coat.of.arms|wordmark)/i.test(image.title));
+  const best=candidates[0]||null;
+  const image=best?{...best,url:`/api/commons-image?url=${encodeURIComponent(best.url)}`}:null;
+  imageSearchCache.set(cacheKey,{image,expiresAt:Date.now()+(image?6:0.1)*60*60*1000});
+  if(imageSearchCache.size>300) imageSearchCache.delete(imageSearchCache.keys().next().value);
+  return image;
+ } catch {
+  imageSearchCache.set(cacheKey,{image:null,expiresAt:Date.now()+2*60*1000});
+  return null;
+ }
+}
+async function serveCommonsImage(req,res,rawUrl) {
+ let url;try{url=new URL(rawUrl);}catch{return json(res,400,{error:'图片链接无效。'});}
+ if(url.protocol!=='https:'||url.hostname!=='upload.wikimedia.org'||!url.pathname.startsWith('/wikipedia/commons/thumb/'))return json(res,403,{error:'图片来源不受支持。'});
+ const key=url.href,cached=commonsImageCache.get(key);
+ if(cached&&cached.expiresAt>Date.now()) {res.writeHead(200,{'content-type':cached.type,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});return res.end(cached.data);}
+ try {
+  const response=await fetch(url,{redirect:'follow',headers:{'user-agent':'TripmateTravelPlanner/1.0 (https://tripmate-travel-agent-1.onrender.com/)'},signal:AbortSignal.timeout(12000)});
+  let finalUrl;try{finalUrl=new URL(response.url);}catch{return json(res,502,{error:'图片暂时无法读取。'});}
+  if(finalUrl.protocol!=='https:'||finalUrl.hostname!=='upload.wikimedia.org'||!finalUrl.pathname.startsWith('/wikipedia/commons/thumb/'))return json(res,502,{error:'图片来源不受支持。'});
+  const type=(response.headers.get('content-type')||'').split(';')[0].toLowerCase();
+  if(!response.ok||!type.startsWith('image/'))return json(res,502,{error:'图片暂时无法读取。'});
+  const data=Buffer.from(await response.arrayBuffer());
+  if(data.length>4*1024*1024)return json(res,413,{error:'图片文件过大。'});
+  commonsImageCache.set(key,{type,data,expiresAt:Date.now()+24*60*60*1000});
+  if(commonsImageCache.size>24) commonsImageCache.delete(commonsImageCache.keys().next().value);
+  res.writeHead(200,{'content-type':type,'content-length':data.length,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin'});
+  return res.end(data);
+ } catch { return json(res,502,{error:'图片暂时无法读取。'}); }
 }
 async function makePlan(req, res) {
  if (!process.env.DEEPSEEK_API_KEY) return json(res, 503, { error:'服务还没有配置 DeepSeek 密钥，暂时不能生成攻略。' });
@@ -136,6 +194,12 @@ async function makePlan(req, res) {
 const server = http.createServer(async (req,res) => {
  const url = new URL(req.url,'http://localhost');
  if (req.method==='POST' && url.pathname==='/api/plan') return makePlan(req,res);
+ if (req.method==='GET' && url.pathname==='/api/commons-search') {
+  const query=url.searchParams.get('query')||'',terms=(url.searchParams.get('terms')||'').split('|').slice(0,5);
+  const image=await searchCommonsImage(query,terms);
+  return json(res,200,{image});
+ }
+ if (req.method==='GET' && url.pathname==='/api/commons-image') return serveCommonsImage(req,res,url.searchParams.get('url')||'');
  if (req.method==='GET' && url.pathname==='/api/health') return json(res,200,{ok:true,configured:Boolean(process.env.DEEPSEEK_API_KEY)});
  if (req.method!=='GET' && req.method!=='HEAD') return json(res,405,{error:'不支持的请求方式。'});
  let requested = url.pathname==='/' ? 'index.html' : decodeURIComponent(url.pathname).replace(/^\/+/, '');
