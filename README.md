@@ -28,7 +28,7 @@
 
 ## 固定网址部署（Render）
 
-项目根目录的 `render.yaml` 已配置好 Render Web Service：Node.js、Singapore 区域、`/api/health` 健康检查，并将 `DEEPSEEK_API_KEY` 留作 Render 控制台里的私密环境变量。仓库已连接到 Render；推送到 GitHub 默认分支会触发部署。不要把 `.env` 提交到 GitHub。
+项目根目录的 `render.yaml` 已配置好 Render Web Service：Node.js、Singapore 区域、`/api/health` 健康检查，并将 `DEEPSEEK_API_KEY` 留作 Render 控制台里的私密环境变量。仓库已连接到 Render；推送到 GitHub 默认分支会触发部署。新版本部署后，已打开的网站标签页需要刷新一次才能载入新版脚本。不要把 `.env` 提交到 GitHub。
 
 Render 会为 Web Service 分配固定的 `onrender.com` 地址。免费实例闲置 15 分钟会休眠，下一位访客访问时通常需要约一分钟唤醒；如需始终在线，需要升级实例方案。
 
