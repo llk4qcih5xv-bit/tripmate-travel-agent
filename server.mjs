@@ -68,7 +68,7 @@ function travelPrompt(checkedAt) {
 
 8. 在完整攻略之后，额外附加且只附加一个网页视觉数据块，必须是单行 JSON，不能放入 Markdown 代码围栏，格式如下：
 <tripmate-visuals>{"destination":"目的地","destinationPhotoPageUrl":"上文引用过的景点/城市介绍公开网页链接","dayRoutes":[{"day":1,"city":"城市","stops":["行程中的真实地点A","真实地点B","真实地点C"]}],"places":[{"type":"hotel","name":"攻略中实际推荐的酒店名","city":"城市","url":"上文同一条酒店详情/预订链接"},{"type":"restaurant","name":"攻略中实际推荐的餐厅名","city":"城市","url":"上文同一条餐厅/菜单链接"}]}</tripmate-visuals>
-视觉数据规则：dayRoutes 每天只列 2–7 个当天攻略中已经出现的真实地点，按游览顺序排列；places 只挑上文酒店和餐厅表中已核实、已给出同一详情链接的实例，最多 5 个。destinationPhotoPageUrl 必须是攻略来源中实际引用过的景点/城市介绍页；places.url 必须与攻略中的详情/预订链接完全相同。网页只读取这些公开来源页提供的预览图（Open Graph/Twitter image），图片说明会链接回原页面；来源页未提供图片时明确显示提示。不得新编商家、链接、坐标或图片网址，也不得用别家图片冒充。
+视觉数据规则：dayRoutes 每天只列 2–7 个当天攻略中已经出现的真实地点，按游览顺序排列；places 只挑上文酒店和餐厅表中已核实、已给出同一详情链接的实例，最多 5 个。destinationPhotoPageUrl 必须填写攻略正文已引用过的景点/城市介绍页；若正文未引用此类页面，先补充一个可信的景点/城市介绍来源链接，再把相同网址写入此字段，不能留空。places.url 必须与攻略中的详情/预订链接完全相同。网页只读取这些公开来源页自身的图片，图片说明会链接回对应原页面；来源页未提供图片时明确显示提示。不得新编商家、链接、坐标或图片网址，也不得用别家图片冒充。
 
 引用规则：每个具体酒店、餐厅、景点和票价旁都放对应的可点击来源链接，优先使用商家/景点/官方售票页面；不要只把来源堆在文末，不要生成猜测的网址。不同日期、房型、人数和票种的价格不得混用。若检索结果冲突，说明来源与差异并以官方页面为准。不要声称已经代订。搜索时只使用目的地、日期、公共景点和公开商户等非敏感行程信息，不要将个人备注作为搜索查询。`;
 }
@@ -86,7 +86,7 @@ function extractSources(output = [], text = '', limit = 12) {
 function cleanVisualText(value, max=180) {
  return typeof value === 'string' ? value.replace(/[<>\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max) : '';
 }
-function extractVisuals(text, destination, verifiedUrls = new Set()) {
+function extractVisuals(text, destination, verifiedSources = []) {
  const match = text.match(/<tripmate-visuals>([\s\S]*?)<\/tripmate-visuals>/i);
  const fallback = { destination, destinationPhotoPageUrl:'', dayRoutes:[], places:[] };
  if (!match) return { text, visuals:fallback };
@@ -94,11 +94,11 @@ function extractVisuals(text, destination, verifiedUrls = new Set()) {
  try {
   const data = JSON.parse(match[1].trim());
   const city = cleanVisualText(data.destination || destination,100) || destination;
+  const sourceMap=new Map(verifiedSources.map(item=>{try{const parsed=new URL(item.url);parsed.hash='';return[parsed.href,item];}catch{return['',null];}}).filter(([url,item])=>url&&item));
   const sourceUrl = raw => {
-   try { const parsed=new URL(raw); parsed.hash=''; return parsed.protocol==='https:'&&verifiedUrls.has(parsed.href)?parsed.href:''; }
+   try { const parsed=new URL(raw); parsed.hash=''; if(!sourceMap.has(parsed.href))return ''; if(parsed.protocol==='http:')parsed.protocol='https:'; return safePublicUrl(parsed.href)?.href||''; }
    catch { return ''; }
   };
-  const destinationPhotoPageUrl = sourceUrl(data.destinationPhotoPageUrl);
   const dayRoutes = (Array.isArray(data.dayRoutes) ? data.dayRoutes : []).slice(0,14).map((route,index) => {
    const stops = [...new Set((Array.isArray(route.stops) ? route.stops : []).map(x=>cleanVisualText(x,100)).filter(Boolean))].slice(0,7);
    return { day:Number.isInteger(Number(route.day)) ? Number(route.day) : index+1, city:cleanVisualText(route.city || city,100) || city, stops };
@@ -107,9 +107,23 @@ function extractVisuals(text, destination, verifiedUrls = new Set()) {
    const type = place.type === 'hotel' ? 'hotel' : place.type === 'restaurant' ? 'restaurant' : '';
    const name = cleanVisualText(place.name,120), placeCity = cleanVisualText(place.city || city,100) || city;
    const url = sourceUrl(typeof place.url === 'string' ? place.url.slice(0,1200) : '');
-   return { type,name,city:placeCity,url };
+   return { type,name,city:placeCity,url,photoPageUrls:url?[url]:[] };
   }).filter(place=>place.type && place.name && place.url);
-  return { text:cleanedText, visuals:{ destination:city, destinationPhotoPageUrl, dayRoutes, places } };
+  const placeUrls=new Set(places.map(place=>place.url));
+  const relevanceTerms=[city,...dayRoutes.flatMap(route=>route.stops)].map(term=>term.toLocaleLowerCase()).filter(term=>term.length>=2);
+  const destinationCandidates=[...sourceMap.values()].map(source=>{
+   let url='';try{const parsed=new URL(source.url);if(parsed.protocol==='http:')parsed.protocol='https:';url=safePublicUrl(parsed.href)?.href||'';}catch{}
+   const title=cleanVisualText(source.title||'',160).toLocaleLowerCase(),href=url.toLocaleLowerCase();
+   if(!url||placeUrls.has(url)||/政策|隐私|条款|退改|客服/.test(title))return null;
+   let score=0;if(title.includes(city.toLocaleLowerCase()))score+=3;
+   if(/sight|scenic|attraction|poi|destination|travel-guide|guide/.test(href))score+=3;
+   if(/游览|景点|风景|导览|旅游|观光|景区|山|湖|古镇/.test(title))score+=2;
+   for(const term of relevanceTerms)if(term.length>=2&&(title.includes(term)||href.includes(term)))score+=4;
+   return {url,score};
+  }).filter(Boolean).filter(source=>source.score>0).sort((a,b)=>b.score-a.score);
+  const explicitDestination=sourceUrl(data.destinationPhotoPageUrl);
+  const destinationPhotoPageUrls=[...new Set([explicitDestination,...destinationCandidates.map(source=>source.url)].filter(Boolean))].slice(0,4);
+  return { text:cleanedText, visuals:{ destination:city, destinationPhotoPageUrl:destinationPhotoPageUrls[0]||'', destinationPhotoPageUrls, dayRoutes, places } };
  } catch {
   return { text:cleanedText, visuals:fallback };
  }
@@ -151,6 +165,21 @@ function extractPreviewImage(html,pageUrl) {
   const decoded=content.replace(/&amp;/gi,'&').replace(/&#x2f;/gi,'/').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'");
   const image=safePublicUrl(new URL(decoded,pageUrl).href);if(image)return image.href;
  }
+ const cleanUrl=raw=>{
+  if(!raw)return '';
+  const decoded=raw.replace(/&amp;/gi,'&').replace(/\\\//g,'/');
+  try{const image=safePublicUrl(new URL(decoded,pageUrl).href);return image&& !/\.(?:svg|gifv)(?:$|\?)/i.test(image.pathname) && !/(logo|icon|avatar|sprite|placeholder|loading|qrcode|qr-code|flag|badge)/i.test(image.pathname)?image.href:'';}catch{return '';}
+ };
+ const imageTags=[...html.matchAll(/<img\b[^>]*>/gi)].map(match=>match[0]);
+ for(const tag of imageTags){
+  const attr=name=>tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,'i'));
+  const src=(attr('src')||attr('data-src')||attr('data-original')||attr('data-lazy-src'));
+  const candidates=[];
+  if(src)candidates.push(src[1]||src[2]||src[3]);
+  const srcset=attr('srcset')||attr('data-srcset');
+  if(srcset){const value=srcset[1]||srcset[2]||srcset[3]||'';for(const item of value.split(',')){const parts=item.trim().split(/\s+/);if(parts[0])candidates.push(parts[0]);}}
+  for(const candidate of candidates){const url=cleanUrl(candidate);if(url)return url;}
+ }
  return '';
 }
 async function servePlacePhoto(req,res,rawPageUrl) {
@@ -166,7 +195,7 @@ async function servePlacePhoto(req,res,rawPageUrl) {
   const page=await fetchPublicUrl(pageUrl,'text/html,application/xhtml+xml;q=0.9',4);
   const pageType=(page.headers.get('content-type')||'').toLowerCase();
   if(!page.ok||(!pageType.includes('text/html')&&!pageType.includes('application/xhtml+xml')))throw new Error('source page unavailable');
-  const html=(await readLimited(page,1_500_000)).toString('utf8');
+  const html=(await readLimited(page,3_500_000)).toString('utf8');
   const imageUrl=extractPreviewImage(html,page.url||pageUrl);
   if(!imageUrl) {pageImageCache.set(pageUrl,{data:null,expiresAt:Date.now()+30*60*1000});return json(res,404,{error:'来源页面没有公开图片预览。'});}
   const image=await fetchPublicUrl(imageUrl,'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9',4);
@@ -201,8 +230,8 @@ async function makePlan(req, res) {
   if (!text) return finishResponse({error:'暂时没有生成攻略，请稍后重试。'});
   const allSources=extractSources(result.output,text,100);
   const sources=allSources.slice(0,12);
-  const enhanced = extractVisuals(text,destination,new Set(allSources.map(item=>{try{const u=new URL(item.url);u.hash='';return u.href;}catch{return '';}})));
-  for(const sourceUrl of [enhanced.visuals.destinationPhotoPageUrl,...enhanced.visuals.places.map(place=>place.url)].filter(Boolean)) approvedImagePages.set(sourceUrl,{expiresAt:Date.now()+30*60*1000});
+  const enhanced = extractVisuals(text,destination,allSources);
+  for(const sourceUrl of [...(enhanced.visuals.destinationPhotoPageUrls||[enhanced.visuals.destinationPhotoPageUrl]),...enhanced.visuals.places.flatMap(place=>place.photoPageUrls||[place.url])].filter(Boolean)) approvedImagePages.set(sourceUrl,{expiresAt:Date.now()+30*60*1000});
   for(const [key,value] of approvedImagePages)if(value.expiresAt<Date.now())approvedImagePages.delete(key);
   while(approvedImagePages.size>250)approvedImagePages.delete(approvedImagePages.keys().next().value);
   finishResponse({ text:enhanced.text, visuals:enhanced.visuals, sources, checkedAt:checkedAt.toISOString() });
