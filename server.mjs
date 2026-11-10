@@ -57,7 +57,7 @@ function travelPrompt(checkedAt) {
 当前检索时间（中国标准时间）：${checkedAt}。请在攻略开头写明“价格与信息检索时间”，并用联网搜索核实计划中实际会用到的酒店、餐厅、门票、交通、开放时间和预约规则。不能保证商家库存或结算价格实时同步；只能把搜索页面当时明确显示的金额称作“检索到的挂牌价”，不可称保证成交价。
 
 请用简体中文给出可执行攻略，按下面结构组织，并尽量使用 Markdown 表格（表格会在网页中直观展示）：
-1. 行程概览：日期、人数、节奏、预算假设；日期未提供或不具体时，明确说无法核验对应日期的实时房价/票价。
+1. 行程概览：日期、人数、节奏、预算假设；日期未提供或不具体时，明确说无法核验对应日期的实时房价/票价。紧接行程概览后立即输出下面第 8 点的视觉 JSON 块（网页会自动隐藏这个数据块）；然后继续第 2 点，不能把 JSON 块拖到全文末尾。
 2. 按天分区整理，避免把各类提醒混在长段落里。每一天都先给醒目的“分钟级日程表”，每行写明确的开始/结束时间（HH:MM），并写清活动、地点、该项耗时和优先级。把步行、交通、换乘、排队、用餐、休息都列成单独时段，不要用“上午自由活动”这类模糊时间；安排要符合真实开放时间和移动耗时，并留出可跳过/调整的机动时间。优先级统一用“必去”“推荐”“可选”：可选项是游客压缩行程时优先删减的内容。
    每天的日程表之后，分别使用独立小标题和表格整理：a)“出行方式与距离”合并表，按时间顺序列每段起终点、步行/公交/地铁/出租车等方式、各方式距离、预计耗时，并给当日步行与其他交通距离合计；未使用的方式填“—”，不要把步行和其他交通拆成两栏或重复写两张表；b)“排队与预约”表，列景点、预计排队分钟数、适用时段/预约要求和来源；无可靠排队数据时写“无法可靠预估”，不得编造精确分钟数；c)“当日费用”表，分列门票、交通、餐饮、住宿及是否为挂牌价或规划估算；d)“今日随身物品”独立短清单；e)“弹性调整”小块，说明可跳过项目及替代安排。距离和车程若是地图估算要标“地图估算”，不得伪称精确实测。
 3. 具体住宿示例表：列出 2 个实际存在、适合路线的酒店/民宿名称、所在区域、用户入住日期对应的每晚挂牌价/币种/房型/含税与早餐情况、可直接打开的酒店或预订详情链接。仅列出网页确实显示的金额；若日期/库存需进入页面选择后才显示，价格栏写“页面未显示，需选日期确认”，并给真实酒店/预订页链接。不要编造酒店和链接。
@@ -66,7 +66,7 @@ function travelPrompt(checkedAt) {
 6. 每日预算表和总预算：交通、门票、餐饮、住宿分别列明计算口径与单一金额；区分“已查到挂牌价”和“规划估算”。不得用宽泛价格范围充数。未能核实的项写“待确认”，不要凑出虚假的精确总额。
 7. 天气、安全、预约提醒和出发前核对清单。
 
-8. 在完整攻略之后，额外附加且只附加一个网页视觉数据块，必须是单行 JSON，不能放入 Markdown 代码围栏，格式如下：
+8. 网页视觉数据块必须是单行 JSON，不能放入 Markdown 代码围栏，紧跟行程概览之后输出，格式如下：
 <tripmate-visuals>{"destination":"目的地","destinationPhotoPageUrl":"上文引用过的景点/城市介绍公开网页链接","dayRoutes":[{"day":1,"city":"城市","stops":["行程中的真实地点A","真实地点B","真实地点C"]}],"places":[{"type":"hotel","name":"攻略中实际推荐的酒店名","city":"城市","url":"上文同一条酒店详情/预订链接"},{"type":"restaurant","name":"攻略中实际推荐的餐厅名","city":"城市","url":"上文同一条餐厅/菜单链接"}]}</tripmate-visuals>
 视觉数据规则：dayRoutes 每天只列 2–7 个当天攻略中已经出现的真实地点，按游览顺序排列；places 只挑上文酒店和餐厅表中已核实、已给出同一详情链接的实例，最多 5 个。destinationPhotoPageUrl 必须填写攻略正文已引用过的景点/城市介绍页；若正文未引用此类页面，先补充一个可信的景点/城市介绍来源链接，再把相同网址写入此字段，不能留空。places.url 必须与攻略中的详情/预订链接完全相同。网页只读取这些公开来源页自身的图片，图片说明会链接回对应原页面；来源页未提供图片时明确显示提示。不得新编商家、链接、坐标或图片网址，也不得用别家图片冒充。
 
@@ -86,24 +86,61 @@ function extractSources(output = [], text = '', limit = 12) {
 function cleanVisualText(value, max=180) {
  return typeof value === 'string' ? value.replace(/[<>\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max) : '';
 }
+function deriveDayRoutes(text,destination) {
+ const headings=[...text.matchAll(/^#{2,4}\s*(?:第\s*)?(\d{1,2})\s*天[^\r\n]*/gm)];
+ return headings.slice(0,14).map((heading,index)=>{
+  const start=heading.index+heading[0].length,end=headings[index+1]?.index??text.length,section=text.slice(start,end);
+  const routeHeading=heading[0].replace(/^#{2,4}\s*/,'').replace(/^第\s*\d+\s*天\s*[·—\-:：]?\s*/,'');
+  const city=cleanVisualText(routeHeading.split(/[（(·｜|]/)[0],100)||destination;
+  const tableStart=section.search(/####\s*分钟级日程表/i);if(tableStart<0)return null;
+  const table=section.slice(tableStart).replace(/^####[^\r\n]*\r?\n/,'').split(/^####\s+/m)[0];
+  const stops=[];
+  for(const line of table.split(/\r?\n/)){
+   if(!line.trim().startsWith('|'))continue;
+   const cells=line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(cell=>cell.trim());
+   if(cells.length<3||!/^\d{1,2}:\d{2}/.test(cells[0]))continue;
+   const stop=cleanVisualText(cells[2].replace(/\[[^\]]*\]\([^)]*\)/g,''),100);
+   if(stop&&stop!=='—'&&!stops.includes(stop))stops.push(stop);
+  }
+  return {day:Number(heading[1])||index+1,city,stops:stops.slice(0,7)};
+ }).filter(route=>route&&route.day>=1&&route.stops.length>=2);
+}
+function derivePlaceRows(text,sourceUrl,destination) {
+ let type='',lastUrl='',places=[];
+ for(const line of text.split(/\r?\n/)){
+  const heading=line.match(/^#{2,4}\s+(.+)/);
+  if(heading){const title=heading[1];type=/住宿.*示例|酒店.*示例|酒店推荐/.test(title)?'hotel':/餐厅.*示例|餐饮.*示例|美食推荐/.test(title)?'restaurant':'';lastUrl='';continue;}
+  if(!type||!line.trim().startsWith('|')||/^\|\s*[-:|\s]+\|?$/.test(line.trim()))continue;
+  const cells=line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(cell=>cell.trim());
+  if(cells.length<2||/^(?:酒店(?:\/民宿)?|民宿|住宿|餐厅|餐館|餐饮|名称|店名|景点|项目|类别|日期|时间|起点|链接)$/.test(cells[0]))continue;
+  const name=cleanVisualText(cells[0].replace(/\*\*/g,'').replace(/`/g,''),120);
+  if(!name||/^(项目|类别|合计|说明|日期|金额)$/.test(name))continue;
+  const links=[...line.matchAll(/\[[^\]]{1,160}\]\((https?:\/\/[^\s)]+)\)/g)].map(match=>match[1]);
+  const url=links.map(sourceUrl).find(Boolean)||(cells.some(cell=>/同上/.test(cell))?lastUrl:'');
+  if(url)lastUrl=url;
+  if(url&&!places.some(place=>place.type===type&&place.name===name&&place.url===url))places.push({type,name,city:destination,url,photoPageUrls:[url]});
+  if(places.length>=5)break;
+ }
+ return places;
+}
 function extractVisuals(text, destination, verifiedSources = []) {
  const match = text.match(/<tripmate-visuals>([\s\S]*?)<\/tripmate-visuals>/i);
- const fallback = { destination, destinationPhotoPageUrl:'', dayRoutes:[], places:[] };
- if (!match) return { text, visuals:fallback };
- const cleanedText = text.replace(match[0],'').trim();
- try {
-  const data = JSON.parse(match[1].trim());
+ const cleanedText = match ? text.replace(match[0],'').trim() : text;
+ let data={};try{if(match)data=JSON.parse(match[1].trim());}catch{}
+ {
   const city = cleanVisualText(data.destination || destination,100) || destination;
   const sourceMap=new Map(verifiedSources.map(item=>{try{const parsed=new URL(item.url);parsed.hash='';return[parsed.href,item];}catch{return['',null];}}).filter(([url,item])=>url&&item));
   const sourceUrl = raw => {
    try { const parsed=new URL(raw); parsed.hash=''; if(!sourceMap.has(parsed.href))return ''; if(parsed.protocol==='http:')parsed.protocol='https:'; return safePublicUrl(parsed.href)?.href||''; }
    catch { return ''; }
   };
-  const dayRoutes = (Array.isArray(data.dayRoutes) ? data.dayRoutes : []).slice(0,14).map((route,index) => {
+  const suppliedRoutes=Array.isArray(data.dayRoutes)&&data.dayRoutes.length?data.dayRoutes:deriveDayRoutes(cleanedText,city);
+  const dayRoutes = suppliedRoutes.slice(0,14).map((route,index) => {
    const stops = [...new Set((Array.isArray(route.stops) ? route.stops : []).map(x=>cleanVisualText(x,100)).filter(Boolean))].slice(0,7);
    return { day:Number.isInteger(Number(route.day)) ? Number(route.day) : index+1, city:cleanVisualText(route.city || city,100) || city, stops };
   }).filter(route=>route.day>=1 && route.day<=14 && route.stops.length>=2);
-  const places = (Array.isArray(data.places) ? data.places : []).slice(0,5).map(place => {
+  const suppliedPlaces=Array.isArray(data.places)&&data.places.length?data.places:derivePlaceRows(cleanedText,sourceUrl,city);
+  const places = suppliedPlaces.slice(0,5).map(place => {
    const type = place.type === 'hotel' ? 'hotel' : place.type === 'restaurant' ? 'restaurant' : '';
    const name = cleanVisualText(place.name,120), placeCity = cleanVisualText(place.city || city,100) || city;
    const url = sourceUrl(typeof place.url === 'string' ? place.url.slice(0,1200) : '');
@@ -124,8 +161,6 @@ function extractVisuals(text, destination, verifiedSources = []) {
   const explicitDestination=sourceUrl(data.destinationPhotoPageUrl);
   const destinationPhotoPageUrls=[...new Set([explicitDestination,...destinationCandidates.map(source=>source.url)].filter(Boolean))].slice(0,4);
   return { text:cleanedText, visuals:{ destination:city, destinationPhotoPageUrl:destinationPhotoPageUrls[0]||'', destinationPhotoPageUrls, dayRoutes, places } };
- } catch {
-  return { text:cleanedText, visuals:fallback };
  }
 }
 function safePublicUrl(raw) {
@@ -222,7 +257,7 @@ async function makePlan(req, res) {
  try {
   const response = await fetch('https://api.deepseek.com/responses', {
    method:'POST', headers:{ authorization:`Bearer ${process.env.DEEPSEEK_API_KEY}`, 'content-type':'application/json' },
-   body:JSON.stringify({ model:MODEL, reasoning:{effort:'low'}, tools:[{type:'web_search'}], instructions:travelPrompt(checkedAt), input:JSON.stringify(safe), max_output_tokens:Math.min(16000,6000+days*900), store:false })
+   body:JSON.stringify({ model:MODEL, reasoning:{effort:'low'}, tools:[{type:'web_search'}], instructions:travelPrompt(checkedAt), input:JSON.stringify(safe), max_output_tokens:Math.min(24000,9000+days*1200), store:false })
   });
   const result = await response.json();
   if (!response.ok) { console.error('AI provider returned',response.status); return finishResponse({error:'攻略生成服务暂时不可用，请稍后重试。'}); }
@@ -234,7 +269,8 @@ async function makePlan(req, res) {
   for(const sourceUrl of [...(enhanced.visuals.destinationPhotoPageUrls||[enhanced.visuals.destinationPhotoPageUrl]),...enhanced.visuals.places.flatMap(place=>place.photoPageUrls||[place.url])].filter(Boolean)) approvedImagePages.set(sourceUrl,{expiresAt:Date.now()+30*60*1000});
   for(const [key,value] of approvedImagePages)if(value.expiresAt<Date.now())approvedImagePages.delete(key);
   while(approvedImagePages.size>250)approvedImagePages.delete(approvedImagePages.keys().next().value);
-  finishResponse({ text:enhanced.text, visuals:enhanced.visuals, sources, checkedAt:checkedAt.toISOString() });
+  const incomplete=result.status==='incomplete'||Boolean(result.incomplete_details);
+  finishResponse({ text:enhanced.text, visuals:enhanced.visuals, sources, checkedAt:checkedAt.toISOString(), incomplete });
  } catch (e) { console.error('AI request failed:',e.name); finishResponse({error:'连接攻略生成服务失败，请稍后再试。'}); }
 }
 const server = http.createServer(async (req,res) => {
