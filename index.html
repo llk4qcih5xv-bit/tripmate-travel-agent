@@ -56,6 +56,19 @@
         </form>
       </section>
 
+      <section class="planner-card" aria-labelledby="agents-title" id="agents">
+        <div class="form-heading"><div><span class="section-kicker">TRIPMATE WORKERS</span><h2 id="agents-title">选择一个 Agent 单独办理</h2></div><span class="step-mark">02 <i>/ AGENTS</i></span></div>
+        <p>每个 Agent 都会实际检索公开网页并交付对应结果；价格与路线会标出来源和无法核实的部分。</p>
+        <div class="form-grid" id="agent-grid">
+          <button class="agent-action" data-agent="intake">需求访谈与蒸馏 <small>把自然语言整理成结构化旅行任务单</small></button>
+          <button class="agent-action" data-agent="price">费用与口碑调查 <small>多渠道查酒店、餐馆、门票价格与评论线索</small></button>
+          <button class="agent-action" data-agent="route">地图行程优化 <small>按地图通勤、营业时段和近邻关系排路线</small></button>
+          <button class="agent-action" data-agent="visual">真实图片与页面体验 <small>核对图片来源、加载超时和失败回退</small></button>
+        </div>
+        <label class="field notes-field"><span>给所选 Agent 的任务</span><textarea id="agent-task" maxlength="1200" rows="3" placeholder="例如：帮我比较苏州园林附近适合两人的酒店，查清周末价格和评价来源。"></textarea></label>
+        <button id="run-agent" class="generate-button" type="button"><span class="button-label">运行所选 Agent</span><span class="button-arrow">↗</span></button>
+      </section>
+
       <section class="suggestions" aria-label="目的地灵感"><span>还没决定？试试</span><button type="button" data-destination="成都">成都 · 3 天</button><button type="button" data-destination="东京">东京 · 5 天</button><button type="button" data-destination="厦门">厦门 · 2 天</button></section>
 
       <section id="result" class="result-section" hidden aria-live="polite">
@@ -73,6 +86,7 @@
     </main>
     <footer id="about"><a class="brand footer-brand" href="/"><span class="brand-mark">旅</span><span>旅伴<small>TRIPMATE</small></span></a><p>把计划交给旅伴，把好奇留给旅途。</p><span class="footer-right">为每一段旅程，留一点从容。</span></footer>
   </div>
-  <script src="/app.js?v=route-photo-7" defer></script>
+  <script src="/app.js?v=agent-panel-1" defer></script>
 </body>
 </html>
+
