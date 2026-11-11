@@ -12,12 +12,21 @@
 .destination-photo:empty:after,.photo-placeholder:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,#ffffff38 48%,transparent 70%);transform:translateX(-100%);animation:photo-shimmer 1.5s infinite}
 @keyframes photo-shimmer{to{transform:translateX(100%)}}
 .destination-photo .place-photo,.place-card-media .place-photo{position:absolute;inset:0;margin:0}
-.place-photo{overflow:hidden}
+.place-photo{overflow:hidden;opacity:0;transition:opacity .25s ease}
+.place-photo.is-ready{opacity:1}
 .place-photo img{display:block;width:100%;height:100%;min-height:120px;object-fit:cover}
-.place-photo figcaption{position:absolute;left:0;right:0;bottom:0;padding:14px 10px 7px;background:linear-gradient(transparent,#102a21b8);font-size:9px;line-height:1.4;color:white}
+.place-photo figcaption{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:flex-end;gap:8px;padding:24px 10px 8px;background:linear-gradient(transparent,#102a21cf);font-size:9px;line-height:1.4;color:white}
+.gallery-label{font-weight:700;white-space:nowrap}
+.gallery-check{min-width:0;flex:1;font-size:8px;opacity:.9}
 .place-photo figcaption a{color:white;text-decoration:none;opacity:.9}
 .place-photo figcaption a:hover{text-decoration:underline}
+.gallery-controls{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.gallery-controls button{pointer-events:auto;width:30px;height:38px;border:0;border-radius:4px;background:#173c30b8;color:white;font-size:24px;line-height:1;cursor:pointer}
+.gallery-controls button:hover{background:#173c30ed}
+.gallery-count{position:absolute;right:9px;top:9px;padding:4px 7px;border-radius:12px;background:#173c30b8;color:white;font-size:9px}
+.gallery-controls[hidden]{display:none}
 .photo-placeholder,.photo-empty{position:absolute;inset:0;display:grid;place-items:center;padding:18px;text-align:center;color:#728477;font-size:11px;line-height:1.6;background:linear-gradient(135deg,#edf2e8,#dce8dc)}
+.photo-placeholder a{color:#31634f;font-weight:700;text-decoration:underline}
 .photo-empty{background:#edf2e8}
 .route-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:12px}
 .route-card{min-width:0;padding:20px 20px 16px;background:#fffefa;border:1px solid #e2e8df}
@@ -37,6 +46,9 @@
 .place-city{font-size:10px;color:#87958b;margin:0 0 12px}
 .place-card-body>a{display:inline-block;color:#31634f;text-decoration:none;border-bottom:1px solid #b9cbb9;padding-bottom:3px;font-size:10px}
 .place-card-body>a:hover{border-color:#31634f}
+.attraction-description{min-height:38px;margin:0 0 13px;color:#64776a;font-size:10px;line-height:1.65}
+.place-card-body>a.ticket-link{display:inline-block;padding:8px 11px;border:1px solid #c7d7c8;background:#edf3e8;text-decoration:none;font-weight:700}
+.place-card-body>a.ticket-link:hover{background:#dfeadd}
 .visual-content[hidden]{display:none}
 @media(max-width:620px){
  .visual-section-heading,.visual-subheading{align-items:flex-start;flex-direction:column;gap:7px}
