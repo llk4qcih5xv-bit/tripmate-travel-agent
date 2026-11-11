@@ -107,3 +107,16 @@ form.addEventListener('submit',async e=>{
  finally{loading.hidden=true;button.disabled=false;btnLabel.textContent='再规划一份攻略';}
 });
 document.querySelector('#copy-plan').addEventListener('click',async()=>{const text=plan.innerText;if(!text)return;try{await navigator.clipboard.writeText(text);const b=document.querySelector('#copy-plan');b.innerHTML='已复制 <span>✓</span>';setTimeout(()=>b.innerHTML='复制攻略 <span>↗</span>',1800);}catch{document.querySelector('#copy-plan').textContent='复制失败，请手动选择';}});
+let selectedAgent='intake';
+document.querySelectorAll('.agent-action').forEach(button=>button.addEventListener('click',()=>{selectedAgent=button.dataset.agent;document.querySelectorAll('.agent-action').forEach(item=>item.classList.toggle('selected',item===button));}));
+document.querySelector('#run-agent').addEventListener('click',async()=>{
+ const task=document.querySelector('#agent-task').value.trim();if(!task){document.querySelector('#agent-task').focus();return;}
+ const result=document.querySelector('#result'),title=document.querySelector('#result-title'),loading=document.querySelector('#loading'),error=document.querySelector('#error-box');
+ result.hidden=false;title.textContent='旅伴 Agent 正在工作';loading.hidden=false;error.hidden=true;plan.hidden=true;visualContent.hidden=true;sourceList.hidden=true;sourceLinks.replaceChildren();document.querySelector('#price-check').hidden=true;
+ const run=document.querySelector('#run-agent');run.disabled=true;run.querySelector('.button-label').textContent='Agent 正在执行…';loading.querySelector('p').textContent='正在按所选 Agent 的职责检索并整理结果…';result.scrollIntoView({behavior:'smooth',block:'start'});
+ const interests=[...form.querySelectorAll('input[name="interests"]:checked')].map(x=>x.value);
+ try{const response=await fetch('/api/agent',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({agent:selectedAgent,task,destination:document.querySelector('#destination').value.trim(),dates:document.querySelector('#dates').value.trim(),days:Number(document.querySelector('#days').value),people:Number(document.querySelector('#people').value),budget:document.querySelector('#budget').value,pace:document.querySelector('#pace').value,interests})});const data=await response.json();if(!response.ok||data.error)throw new Error(data.error||'Agent 执行失败。');title.textContent=data.agent;plan.innerHTML=renderMarkdown(data.text);plan.hidden=false;if(data.sources?.length){for(const item of data.sources){const a=document.createElement('a');a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=item.title||item.url;sourceLinks.append(a);}sourceList.hidden=false;}const checked=new Date(data.checkedAt);const check=document.querySelector('#price-check');check.textContent=`检索时间：${new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Shanghai'}).format(checked)}（北京时间）。请通过来源链接复核动态价格及规则。`;check.hidden=false;}
+ catch(err){error.textContent=err.message||'Agent 请求失败。';error.hidden=false;}
+ finally{loading.hidden=true;run.disabled=false;run.querySelector('.button-label').textContent='运行所选 Agent';}
+});
+
