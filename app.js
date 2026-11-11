@@ -83,12 +83,24 @@ function renderVisuals(visuals,fallbackDestination=''){
   });visualContent.append(cards);}
  visualContent.hidden=false;
 }
+async function readPlanResponse(response,onProgress){
+ if(!response.body?.getReader)return response.json();
+ const reader=response.body.getReader(),decoder=new TextDecoder();let raw='',announced=0;
+ while(true){
+  const part=await reader.read();if(part.done)break;raw+=decoder.decode(part.value,{stream:true});
+  const marker='"progress":[';const start=raw.indexOf(marker);if(start<0)continue;
+  const from=start+marker.length,end=raw.indexOf('],',from),progressText=raw.slice(from,end<0?raw.length:end);
+  const messages=[...progressText.matchAll(/"(?:\\.|[^"\\])*"/g)];
+  while(announced<messages.length){try{const message=JSON.parse(messages[announced++][0]);if(message)onProgress(message);}catch{announced++;}}
+ }
+ return JSON.parse(raw);
+}
 form.addEventListener('submit',async e=>{
  e.preventDefault();const interests=[...form.querySelectorAll('input[name="interests"]:checked')].map(x=>x.value);
  const payload={destination:document.querySelector('#destination').value.trim(),dates:document.querySelector('#dates').value.trim(),days:Number(document.querySelector('#days').value),people:Number(document.querySelector('#people').value),budget:document.querySelector('#budget').value,pace:document.querySelector('#pace').value,interests,notes:note.value.trim()};
  if(!payload.destination)return;
  result.hidden=false;loading.hidden=false;errorBox.hidden=true;plan.hidden=true;visualContent.hidden=true;visualContent.replaceChildren();document.querySelector('#price-check').hidden=true;sourceList.hidden=true;sourceLinks.replaceChildren();document.querySelector('#result-title').textContent=`${payload.destination} · ${payload.days} 天旅行攻略`;result.scrollIntoView({behavior:'smooth',block:'start'});button.disabled=true;btnLabel.textContent='正在规划…';
- try{const response=await fetch('/api/plan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok||data.error)throw new Error(data.error||'暂时无法生成攻略。');plan.innerHTML=renderMarkdown(data.text);plan.hidden=false;renderVisuals(data.visuals,payload.destination);if(data.checkedAt){const checked=new Date(data.checkedAt);document.querySelector('#price-check').textContent=`本次攻略开始检索于 ${new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Shanghai'}).format(checked)}（北京时间）。金额以链接页面及商家结算页为准。${data.incomplete?' 本次内容触及输出长度上限，部分段落可能不完整。':''}`;document.querySelector('#price-check').hidden=false;}if(data.sources?.length){for(const item of data.sources){const a=document.createElement('a');a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=item.title||item.url;sourceLinks.append(a);}sourceList.hidden=false;}}
+ try{const response=await fetch('/api/plan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});const progressLabel=loading.querySelector('p');progressLabel.textContent='正在联网查询公开资料…';const data=await readPlanResponse(response,message=>{progressLabel.textContent=`${message}…`;});if(!response.ok||data.error)throw new Error(data.error||'暂时无法生成攻略。');plan.innerHTML=renderMarkdown(data.text);plan.hidden=false;renderVisuals(data.visuals,payload.destination);if(data.checkedAt){const checked=new Date(data.checkedAt);document.querySelector('#price-check').textContent=`本次攻略开始检索于 ${new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Shanghai'}).format(checked)}（北京时间）。金额以链接页面及商家结算页为准。${data.incomplete?' 本次内容触及输出长度上限，部分段落可能不完整。':''}`;document.querySelector('#price-check').hidden=false;}if(data.sources?.length){for(const item of data.sources){const a=document.createElement('a');a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=item.title||item.url;sourceLinks.append(a);}sourceList.hidden=false;}}
  catch(err){errorBox.textContent=err.message||'网络连接失败，请稍后重试。';errorBox.hidden=false;}
  finally{loading.hidden=true;button.disabled=false;btnLabel.textContent='再规划一份攻略';}
 });
