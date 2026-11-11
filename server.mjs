@@ -264,7 +264,7 @@ async function makePlan(req, res) {
  try {
   const response = await fetch('https://api.deepseek.com/responses', {
    method:'POST', headers:{ authorization:`Bearer ${process.env.DEEPSEEK_API_KEY}`, 'content-type':'application/json' },
-   body:JSON.stringify({ model:MODEL, reasoning:{effort:'low'}, tools:[{type:'web_search'}], instructions:travelPrompt(checkedAt), input:JSON.stringify(safe), max_output_tokens:Math.min(24000,9000+days*1200), store:false })
+   body:JSON.stringify({ model:MODEL, reasoning:{effort:'low'}, tools:[{type:'web_search'}], instructions:travelPrompt(checkedAt), input:JSON.stringify(safe), max_output_tokens:Math.min(22000,8000+days*2500), store:false })
   });
   const result = await response.json();
   if (!response.ok) { console.error('AI provider returned',response.status); return finishResponse({error:'攻略生成服务暂时不可用，请稍后重试。'}); }
@@ -310,4 +310,3 @@ const server = http.createServer(async (req,res) => {
  catch { return json(res,404,{error:'找不到这个页面。'}); }
 });
 server.listen(PORT,HOST,()=>console.log(`旅伴旅行攻略网站已启动：${HOST}:${PORT}`));
-

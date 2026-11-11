@@ -119,4 +119,3 @@ document.querySelector('#run-agent').addEventListener('click',async()=>{
  catch(err){error.textContent=err.message||'Agent 请求失败。';error.hidden=false;}
  finally{loading.hidden=true;run.disabled=false;run.querySelector('.button-label').textContent='运行所选 Agent';}
 });
-
