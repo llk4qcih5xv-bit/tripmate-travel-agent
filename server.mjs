@@ -91,6 +91,9 @@ function extractSources(output = [], text = '', limit = 12) {
 function cleanVisualText(value, max=180) {
  return typeof value === 'string' ? value.replace(/[<>\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max) : '';
 }
+function plainMarkdown(value,max=180) {
+ return cleanVisualText(String(value||'').replace(/!\[([^\]]*)\]\([^)]*\)/g,'$1').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/<https?:\/\/[^>]+>/gi,'').replace(/[*_`~]/g,''),max);
+}
 function deriveDayRoutes(text,destination) {
  const headings=[...text.matchAll(/^#{2,4}\s*[^\r\n]*/gim)].filter(heading=>{
   const title=heading[0].replace(/^#{2,4}\s*/,'');
@@ -123,7 +126,7 @@ function derivePlaceRows(text,sourceUrl,destination) {
   if(!type||!line.trim().startsWith('|')||/^\|\s*[-:|\s]+\|?$/.test(line.trim()))continue;
   const cells=line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(cell=>cell.trim());
   if(cells.length<2||/^(?:酒店(?:\/民宿)?|民宿|住宿|餐厅|餐館|餐饮|名称|店名|景点|项目|类别|日期|时间|起点|链接)$/.test(cells[0]))continue;
-  const name=cleanVisualText(cells[0].replace(/\*\*/g,'').replace(/`/g,''),120);
+  const name=plainMarkdown(cells[0],120);
   if(!name||/^(项目|类别|合计|说明|日期|金额)$/.test(name))continue;
   const links=[...line.matchAll(/\[[^\]]{1,160}\]\((https?:\/\/[^\s)]+)\)/g)].map(match=>match[1]);
   const url=links.map(sourceUrl).find(Boolean)||(cells.some(cell=>/同上/.test(cell))?lastUrl:'');
@@ -146,13 +149,13 @@ function deriveAttractionRows(text,sourceUrl,destination,dayRoutes=[]) {
   if(!active&&cells.some(cell=>/景点/.test(cell))&&cells.some(cell=>/票|预约|门票/.test(cell))){active=true;continue;}
   if(!active)continue;
   if(cells.length<2||/^(景点|项目|名称|票种|日期|适用人群|票价|门票|预约|说明)$/.test(cells[0]))continue;
-  const name=cleanVisualText(cells[0].replace(/\*\*/g,'').replace(/`/g,''),120);
+  const name=plainMarkdown(cells[0],120);
   if(!name||/合计|说明|待确认/.test(name))continue;
   const links=markdownLinks(line),approvedLinks=links.map(link=>({...link,url:sourceUrl(link.url)})).filter(link=>link.url);
   if(!approvedLinks.length)continue;
   const ticket=approvedLinks.find(link=>/购票|门票|预约|售票|订票/.test(link.label))||approvedLinks[0];
   const source=approvedLinks.find(link=>link!==ticket)||ticket;
-  const description=cleanVisualText(cells.slice(1).map(cell=>cell.replace(/\[[^\]]*\]\([^)]*\)/g,'').replace(/\*\*/g,'')).filter(Boolean).join(' · '),220);
+  const description=plainMarkdown(cells.slice(1).join(' · '),220);
   const place={name,city:destination,description,url:source.url,ticketUrl:ticket.url,ticketLabel:/购票|门票|预约|售票|订票/.test(ticket.label)?ticket.label:'景点/预约详情',photoPageUrls:[source.url],day:0};
   const matched=dayRoutes.find(route=>route.stops.some(stop=>stop.includes(name)||name.includes(stop)));
   if(matched)place.day=matched.day;
@@ -180,13 +183,13 @@ function extractVisuals(text, destination, verifiedSources = []) {
   const suppliedPlaces=Array.isArray(data.places)&&data.places.length?data.places:derivePlaceRows(cleanedText,sourceUrl,city);
   const places = suppliedPlaces.slice(0,7).map(place => {
    const type = place.type === 'hotel' ? 'hotel' : place.type === 'restaurant' ? 'restaurant' : '';
-   const name = cleanVisualText(place.name,120), placeCity = cleanVisualText(place.city || city,100) || city;
+   const name = plainMarkdown(place.name,120), placeCity = cleanVisualText(place.city || city,100) || city;
    const url = sourceUrl(typeof place.url === 'string' ? place.url.slice(0,1200) : '');
    return { type,name,city:placeCity,url,photoPageUrls:url?[url]:[] };
   }).filter(place=>place.type && place.name && place.url);
   const suppliedAttractions=Array.isArray(data.attractions)&&data.attractions.length?data.attractions:deriveAttractionRows(cleanedText,sourceUrl,city,dayRoutes);
   const attractions=suppliedAttractions.slice(0,6).map(item=>{
-   const name=cleanVisualText(item.name,120),url=sourceUrl(typeof item.url==='string'?item.url.slice(0,1200):''),ticketUrl=sourceUrl(typeof item.ticketUrl==='string'?item.ticketUrl.slice(0,1200):'');
+   const name=plainMarkdown(item.name,120),url=sourceUrl(typeof item.url==='string'?item.url.slice(0,1200):''),ticketUrl=sourceUrl(typeof item.ticketUrl==='string'?item.ticketUrl.slice(0,1200):'');
    const needle=normalizedText(name),related=[...sourceMap.values()].filter(source=>normalizedText(source.title||'').includes(needle)).map(source=>sourceUrl(source.url)).filter(Boolean);
    const photoPageUrls=[...new Set([url,...related].filter(Boolean))].slice(0,3);
    return {name,city:cleanVisualText(item.city||city,100)||city,description:cleanVisualText(item.description,220),url:photoPageUrls[0]||url,ticketUrl,ticketLabel:cleanVisualText(item.ticketLabel||'官方购票/预约',60),day:Number(item.day)||0,photoPageUrls};
@@ -245,12 +248,29 @@ function htmlAttrs(tag) {
  const attrs={};for(const match of tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g))attrs[match[1].toLowerCase()]=decodeHtml(match[2]??match[3]??match[4]??'');return attrs;
 }
 function normalizedText(value='') { return String(value).toLocaleLowerCase().replace(/[\s\p{P}\p{S}_]+/gu,''); }
-function pageMatchesEntity(title,description,body,name,kind,citationTitle='') {
- const target=normalizedText(name),documentText=normalizedText(`${title} ${description} ${citationTitle} ${body.slice(0,50000)}`);
- if(!target||target.length<2)return false;
- if(documentText.includes(target))return true;
- if(kind==='destination'&&target.length>=2){const parts=String(name).match(/[\p{Script=Han}]{2,}/gu)||[];return parts.some(part=>normalizedText(documentText).includes(normalizedText(part)));}
- return false;
+function entityTerms(name,city,kind) {
+ const full=normalizedText(name);if(!full)return [];
+ const cityValue=normalizedText(city).replace(/(?:市|区|县|省)$/,'');
+ let local=full;
+ if(kind!=='destination'&&cityValue)local=local.replace(cityValue,'').replace(/^(?:市|区|县|省)+/u,'');
+ const suffix=kind==='hotel'?/(?:酒店|宾馆|客栈|民宿|旅馆|酒店式公寓)+$/u:kind==='restaurant'?/(?:餐厅|餐館|餐馆|饭店|酒楼|食府|美食)+$/u:kind==='attraction'?/(?:风景名胜区|风景区|景区|景点|旅游区|名胜区)+$/u:/$/u;
+ const core=local.replace(suffix,'').replace(/^(?:市中心|中心|附近|周边|当地)+/u,'');
+ const terms=[full,local,core];
+ if(core.length>=4)terms.push(core.slice(-3));
+ return [...new Set(terms.filter(term=>term.length>=2))];
+}
+function containsEntityText(text,name,city,kind) {
+ const haystack=normalizedText(text),terms=entityTerms(name,city,kind);
+ if(terms.some(term=>haystack.includes(term)))return true;
+ const core=terms.sort((a,b)=>b.length-a.length).find(term=>term.length>=5);if(!core)return false;
+ const pairs=new Set(Array.from({length:core.length-1},(_,i)=>core.slice(i,i+2)));
+ const hits=[...pairs].filter(pair=>haystack.includes(pair)).length;
+ return pairs.size>=4&&hits>=3&&hits/pairs.size>=0.55;
+}
+function pageMatchesEntity(title,description,body,name,kind,citationTitle='',city='') {
+ if(normalizedText(name).length<2)return false;
+ const metadata=`${title} ${description} ${citationTitle}`;
+ return containsEntityText(metadata,name,city,kind)||containsEntityText(body.slice(0,50000),name,city,kind);
 }
 function imageLabel(alt,kind) {
  const value=String(alt||'');
@@ -271,9 +291,10 @@ function imageLabel(alt,kind) {
 }
 function imageAltMatchesKind(alt,kind) {
  const value=String(alt||'');if(!value)return true;
- if(kind==='hotel')return !/餐馆|餐厅菜品|菜品|食物|restaurant dish|food plate/i.test(value);
- if(kind==='restaurant')return !/客房|酒店外观|hotel room|bedroom|hotel exterior/i.test(value);
- if(kind==='destination'||kind==='attraction')return !/客房|酒店房型|酒店外观|酒店大堂|菜单|餐厅菜品|hotel room|hotel exterior|restaurant menu/i.test(value);
+ const scenery=/景区|景点|风景|全景|风光|山水|湖泊|海滩|瀑布|古镇|寺庙|landscape|scenic|panorama|beach|waterfall/i.test(value);
+ if(kind==='hotel')return !/餐馆|餐厅菜品|菜品|食物|restaurant dish|food plate/i.test(value)&&(!scenery||/客房|房型|湖景房|酒店外观|酒店|hotel|room|suite/i.test(value));
+ if(kind==='restaurant')return !/客房|酒店外观|hotel room|bedroom|hotel exterior/i.test(value)&&(!scenery||/餐厅|餐馆|饭店|店内|用餐|restaurant|dining/i.test(value));
+ if(kind==='destination'||kind==='attraction')return !/客房|酒店|宾馆|菜单|餐厅|餐馆|饭店|菜品|hotel|restaurant|menu|room|suite/i.test(value);
  return true;
 }
 function explicitVenueMatches(alt,name,kind) {
@@ -282,27 +303,42 @@ function explicitVenueMatches(alt,name,kind) {
  const target=normalizedText(name);for(const match of alt.matchAll(pattern)){const venue=normalizedText(match[0]);if(venue.length>=4&&!target.includes(venue)&&!venue.includes(target))return false;}
  return true;
 }
-function galleryFromHtml(html,pageUrl,kind,name,citationTitle='') {
+function explicitAttractionMatches(alt,name,city,kind) {
+ if(!alt||!['destination','attraction'].includes(kind))return true;
+ const pattern=/[\p{Script=Han}]{2,18}(?:景区|古镇|古城|博物馆|公园|寺|塔|湖|山|园|街|桥|岛|宫|故居|老街|广场|瀑布|温泉|城墙|遗址)/gu;
+ const target=entityTerms(name,city,kind),cityToken=normalizedText(city).replace(/(?:市|区|县|省)$/,'');
+ for(const match of alt.matchAll(pattern)){
+  const feature=normalizedText(match[0]);
+  if(target.some(term=>feature.includes(term)||term.includes(feature)))continue;
+  if(kind==='destination'&&cityToken&&normalizedText(alt).includes(cityToken))continue;
+  return false;
+ }
+ return true;
+}
+function galleryFromHtml(html,pageUrl,kind,name,citationTitle='',city='') {
+ name=plainMarkdown(name,120);city=plainMarkdown(city,100);citationTitle=plainMarkdown(citationTitle,240);
  const metas={};
  for(const match of html.matchAll(/<meta\b[^>]*>/gi)){const attrs=htmlAttrs(match[0]),key=(attrs.property||attrs.name||'').toLowerCase();if(key&&attrs.content)metas[key]=attrs.content;}
  const title=decodeHtml(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||metas['og:title']||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,240);
  const pageTitle=metas['og:title']||title,description=metas['og:description']||metas.description||'';
  const body=decodeHtml(html.replace(/<(script|style|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ')).slice(0,50000);
- if(!pageMatchesEntity(`${title} ${pageTitle}`,description,body,name,kind,citationTitle))return {ok:false,reason:'详情页标题或介绍没有匹配到该地点，已跳过以避免错图。',sourceTitle:pageTitle,photos:[]};
+ if(!pageMatchesEntity(`${title} ${pageTitle}`,description,body,name,kind,citationTitle,city))return {ok:false,reason:'来源页与攻略地点没有足够匹配，已跳过以避免错图。',sourceTitle:pageTitle,photos:[]};
  const candidates=[];
  const add=(raw,alt='',origin='')=>{
   if(!raw)return;let url;try{url=safePublicUrl(new URL(decodeHtml(raw).replace(/\\\//g,'/'),pageUrl).href)?.href;}catch{return;}
   if(!url||/\.(?:svg|gifv)(?:$|\?)/i.test(url)||/(logo|icon|avatar|sprite|placeholder|loading|qrcode|qr-code|flag|badge|tracking|pixel)/i.test(`${url} ${alt}`))return;
-  if(!imageAltMatchesKind(alt,kind)||!explicitVenueMatches(alt,name,kind))return;
-  let score=origin==='meta'?1:3;if(/客房|房型|大床|双床|套房|bedroom|bed|room|suite/i.test(alt)&&kind==='hotel')score+=8;
+  if(!imageAltMatchesKind(alt,kind)||!explicitVenueMatches(alt,name,kind)||!explicitAttractionMatches(alt,name,city,kind))return;
+  let score=origin==='meta'?0:(alt?3:2);if(/客房|房型|大床|双床|套房|bedroom|bed|room|suite/i.test(alt)&&kind==='hotel')score+=8;
   if(/外观|大堂|exterior|facade|lobby/i.test(alt)&&kind==='hotel')score+=7;
   if(/菜|美食|招牌|dish|food|meal/i.test(alt)&&kind==='restaurant')score+=8;
   if(/环境|店内|餐厅|interior|dining/i.test(alt)&&kind==='restaurant')score+=6;
   if(/景色|风景|全景|地标|landmark|panorama|landscape|scenic|view/i.test(alt)&&['destination','attraction'].includes(kind))score+=8;
+  if(containsEntityText(`${alt} ${url}`,name,city,kind))score+=6;
   const rawAlt=alt.slice(0,180),label=imageLabel(rawAlt,kind);
   candidates.push({url,alt:rawAlt,label,score,origin});
  };
- for(const [key,origin] of [['og:image','meta'],['og:image:url','meta'],['twitter:image','meta'],['twitter:image:src','meta']])add(metas[key],metas['og:image:alt']||metas['twitter:image:alt']||pageTitle,origin);
+ const shareImageAlt=metas['og:image:alt']||metas['twitter:image:alt']||'';
+ for(const [key,origin] of [['og:image','meta'],['og:image:url','meta'],['twitter:image','meta'],['twitter:image:src','meta']])add(metas[key],shareImageAlt,origin);
  for(const match of html.matchAll(/<img\b[^>]*>/gi)){
   const attrs=htmlAttrs(match[0]),alt=(attrs.alt||attrs.title||'').trim();
   const raw=attrs.src||attrs['data-src']||attrs['data-original']||attrs['data-lazy-src']||attrs['data-original-src'];
@@ -319,11 +355,11 @@ function galleryFromHtml(html,pageUrl,kind,name,citationTitle='') {
  const photos=[...unique.values()].sort((a,b)=>b.score-a.score).slice(0,6).map(({url,label,alt,score})=>({url,label,alt,score}));
  return {ok:true,reason:photos.length?'已核对来源页地点名称，并按图片说明筛选。':'地点匹配，但页面没有可用的对应图片。',sourceTitle:pageTitle,photos};
 }
-async function getPageGallery(pageUrl,kind,name,citationTitle='') {
- const key=`${pageUrl}|${kind}|${name}|${citationTitle}`,cached=pageGalleryCache.get(key);if(cached&&cached.expiresAt>Date.now())return cached.value;
+async function getPageGallery(pageUrl,kind,name,citationTitle='',city='') {
+ const key=`${pageUrl}|${kind}|${name}|${citationTitle}|${city}`,cached=pageGalleryCache.get(key);if(cached&&cached.expiresAt>Date.now())return cached.value;
  const page=await fetchPublicUrl(pageUrl,'text/html,application/xhtml+xml;q=0.9',4),pageType=(page.headers.get('content-type')||'').toLowerCase();
  if(!page.ok||(!pageType.includes('text/html')&&!pageType.includes('application/xhtml+xml')))throw new Error('source page unavailable');
- const html=(await readLimited(page,3_500_000)).toString('utf8'),gallery=galleryFromHtml(html,page.url||pageUrl,kind,name,citationTitle);
+ const html=(await readLimited(page,3_500_000)).toString('utf8'),gallery=galleryFromHtml(html,page.url||pageUrl,kind,name,citationTitle,city);
  pageGalleryCache.set(key,{value:gallery,expiresAt:gallery.ok?Date.now()+30*60*1000:Date.now()+5*60*1000});
  while(pageGalleryCache.size>120)pageGalleryCache.delete(pageGalleryCache.keys().next().value);
  return gallery;
@@ -335,11 +371,12 @@ function approvedContext(pageUrl,kind,name) {
 async function servePlacePhotos(req,res,search) {
  let pageUrl;try{pageUrl=new URL(search.get('page')||'').href;}catch{return json(res,400,{error:'图片来源链接无效。'});}
  const kind=search.get('kind')||'',name=cleanVisualText(search.get('name')||'',120);
+ const city=cleanVisualText(search.get('city')||'',100);
  if(!['hotel','restaurant','attraction','destination'].includes(kind)||!name)return json(res,400,{error:'图片自检信息不完整。'});
  const context=approvedContext(pageUrl,kind,name);if(!context)return json(res,403,{error:'只能读取本次攻略中引用且已授权的地点来源页。'});
  try{
-  const gallery=await getPageGallery(pageUrl,kind,name,context.sourceTitle||'');
-  const photos=gallery.photos.map((photo,index)=>({label:photo.label,alt:photo.alt,verified:true,url:`/api/place-photo?page=${encodeURIComponent(pageUrl)}&index=${index}&kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(name)}`}));
+  const gallery=await getPageGallery(pageUrl,kind,name,context.sourceTitle||'',city);
+  const photos=gallery.photos.map((photo,index)=>({label:photo.label,alt:photo.alt,verified:true,url:`/api/place-photo?page=${encodeURIComponent(pageUrl)}&index=${index}&kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}`}));
   return json(res,200,{sourceTitle:gallery.sourceTitle,sourceUrl:pageUrl,matched:gallery.ok,reason:gallery.reason,checks:{sourcePage:true,placeName:gallery.ok,descriptiveMismatchFiltered:true,rasterFile:'通过图片代理加载时检查'},photos});
  }catch{return json(res,200,{sourceTitle:'',sourceUrl:pageUrl,matched:false,reason:'图片来源暂时无法读取，请打开对应详情链接查看。',checks:{sourcePage:false,placeName:false,descriptiveMismatchFiltered:true,rasterFile:'未读取'},photos:[]});}
 }
@@ -357,12 +394,13 @@ async function servePlacePhoto(req,res,search) {
  let kind=search.get('kind')||'',name=cleanVisualText(search.get('name')||'',120);
  if(!kind&&!name){const legacy=approvedImagePages.get(pageUrl)?.contexts.find(item=>(item.expiresAt||0)>Date.now());if(legacy){kind=legacy.kind;name=legacy.name;}}
  const index=Number(search.get('index')||0);
+ const city=cleanVisualText(search.get('city')||'',100);
  const context=approvedContext(pageUrl,kind,name);if(!context)return json(res,403,{error:'只能读取本次攻略中引用且已授权的地点图片。'});
  if(!Number.isInteger(index)||index<0||index>=6)return json(res,400,{error:'图片编号无效。'});
- const key=`${pageUrl}|${kind}|${name}|${index}`,cached=pageImageCache.get(key);
+ const key=`${pageUrl}|${kind}|${name}|${city}|${index}`,cached=pageImageCache.get(key);
  if(cached&&cached.expiresAt>Date.now()){if(!cached.data)return json(res,404,{error:'这张图片未通过文件核验。'});res.writeHead(200,{'content-type':cached.type,'content-length':cached.data.length,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin'});return res.end(cached.data);}
  try{
-  const gallery=await getPageGallery(pageUrl,kind,name,context.sourceTitle||''),photo=gallery.photos[index];if(!gallery.ok||!photo)throw new Error('photo not approved');
+  const gallery=await getPageGallery(pageUrl,kind,name,context.sourceTitle||'',city),photo=gallery.photos[index];if(!gallery.ok||!photo)throw new Error('photo not approved');
   const image=await fetchPublicUrl(photo.url,'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9',4),declared=(image.headers.get('content-type')||'').split(';')[0].toLowerCase();
   if(!image.ok||!['image/jpeg','image/png','image/webp','image/avif','image/gif','application/octet-stream'].includes(declared))throw new Error('image unavailable');
   const data=await readLimited(image,3*1024*1024),type=imageMime(data);if(!type)throw new Error('image failed raster check');
