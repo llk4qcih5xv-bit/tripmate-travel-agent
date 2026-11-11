@@ -67,10 +67,12 @@ function addPhoto(target,pageUrls,alt){
  const pages=[...new Set((Array.isArray(pageUrls)?pageUrls:[pageUrls]).filter(url=>/^https:\/\//i.test(url||'')))];
  const placeholder=document.createElement('div');placeholder.className='photo-placeholder';placeholder.textContent=pages.length?'正在读取攻略引用页的图片…':'没有可核实的图片来源页';target.append(placeholder);
  if(!pages.length)return;
- const figure=document.createElement('figure');figure.className='place-photo';const img=document.createElement('img');img.alt=alt;img.loading='lazy';img.referrerPolicy='no-referrer';
+ const figure=document.createElement('figure');figure.className='place-photo';figure.style.opacity='0';const img=document.createElement('img');img.alt=alt;img.loading='eager';img.referrerPolicy='no-referrer';
  const caption=document.createElement('figcaption');const source=document.createElement('a');source.target='_blank';source.rel='noopener noreferrer';source.textContent='图片预览来自攻略引用页 ↗';caption.append(source);figure.append(img,caption);
- let next=0,currentPage='';const loadNext=()=>{currentPage=pages[next++];if(!currentPage){placeholder.textContent='引用来源页没有可读取的图片预览';return;}img.src=`/api/place-photo?page=${encodeURIComponent(currentPage)}`;};
- img.onload=()=>{source.href=currentPage;placeholder.remove();target.append(figure);};img.onerror=loadNext;loadNext();
+ target.append(figure);let next=0,currentPage='',timer=0;const deadline=Date.now()+30000;
+ const unavailable=()=>{clearTimeout(timer);figure.remove();placeholder.textContent='图片暂时无法读取，请打开下方详情链接查看';};
+ const loadNext=()=>{clearTimeout(timer);if(Date.now()>=deadline){unavailable();return;}currentPage=pages[next++];if(!currentPage){unavailable();return;}img.src=`/api/place-photo?page=${encodeURIComponent(currentPage)}`;timer=setTimeout(()=>{if(Date.now()>=deadline)unavailable();else loadNext();},Math.min(15000,deadline-Date.now()));};
+ img.onload=()=>{clearTimeout(timer);source.href=currentPage;figure.style.opacity='1';placeholder.remove();};img.onerror=loadNext;loadNext();
 }
 function renderVisuals(visuals,fallbackDestination=''){
  visuals=visuals||{destination:fallbackDestination,destinationPhotoPageUrl:'',destinationPhotoPageUrls:[],dayRoutes:[],places:[]};
